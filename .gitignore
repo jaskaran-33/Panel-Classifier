@@ -226,7 +226,7 @@ __marimo__/
 *.csv
 
 # Logs
-*.log
+logs
 
 # Data folder
 *data
