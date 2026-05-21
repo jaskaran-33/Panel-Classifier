@@ -11,7 +11,6 @@ from utils.classifier import detect_columns, classify_panels
 from utils.exporter import export_exceptions
 from utils.validator import validate_outputs
 
-
 def _verify_boundaries(file_path: Path, logger: logging.Logger) -> bool:
     logger.info("Executing boundary verification matrix scan...")
     wb_ro = openpyxl.load_workbook(file_path, read_only=True)
@@ -33,15 +32,12 @@ def _verify_boundaries(file_path: Path, logger: logging.Logger) -> bool:
     wb_ro.close()
     return True
 
-
 def process_workbook(file_path: Path, logger: logging.Logger) -> bool:
     if not _verify_boundaries(file_path, logger):
         return False
 
     logger.info("Ingesting target workbook...")
     wb = openpyxl.load_workbook(file_path)
-
-    # Load identical state to ensure baseline maps formulas strictly as strings
     wb_master = openpyxl.load_workbook(file_path)
 
     exceptions: list[dict[str, str]] = []
@@ -63,11 +59,11 @@ def process_workbook(file_path: Path, logger: logging.Logger) -> bool:
                 "issue": "Series Void",
                 "description": "Row boundary scan returned no valid panel nomenclature."
             })
-            continue
+        else:
+            count = classify_panels(wb, ws, panel_cols, all_panel_cols, header_map, logger)
+            total_panels_created += count
 
-        count = classify_panels(wb, ws, panel_cols, all_panel_cols, header_map, logger)
-        total_panels_created += count
-
+        # FIX: Unconditionally wipe the master sheet to prevent 'Sheet 1' ghosts
         del wb[sheet_name]
 
     if total_panels_created == 0:
