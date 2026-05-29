@@ -1,7 +1,8 @@
 """
 Isolates classification logic and boundary detection.
 Implements custom formula hypervisor enforcing intra-row recalculations,
-headless column pruning, trailing summary truncation, and strict AMT calculations.
+headless column pruning, trailing summary truncation, strict AMT calculations,
+and contiguous serial re-indexing.
 """
 import logging
 import re
@@ -156,6 +157,18 @@ def _clear_headless_columns(ws: Worksheet) -> None:
             for r in range(1, ws.max_row + 1):
                 ws.cell(row=r, column=c).value = None
 
+def _reindex_serial_numbers(ws: Worksheet, sno_col: int) -> None:
+    """
+    Enforces contiguous sequential numbering for active data rows post-pruning.
+    Overrides existing numerical entries to ensure logical output structure.
+    """
+    current_sno = 1
+    for r in range(HEADER_ROW + 1, ws.max_row + 1):
+        sno_val = ws.cell(row=r, column=sno_col).value
+        if _is_numeric(sno_val):
+            ws.cell(row=r, column=sno_col).value = current_sno
+            current_sno += 1
+
 def detect_columns(ws: Worksheet, logger: logging.Logger) -> Tuple[Dict[str, List[int]], List[int], Dict[str, int]]:
     panel_cols: Dict[str, List[int]] = {}
     all_panel_cols: List[int] = []
@@ -239,13 +252,16 @@ def classify_panels(wb: Workbook, ws: Worksheet, panel_cols: Dict[str, List[int]
 
         _shift_formulas_and_unhide(ws_new, cols_to_delete)
 
-        # Deploy explicit overwrite for AMT column formulas
         _fix_amt_formulas(ws_new)
 
         for mr in shifted_merges:
             ws_new.merged_cells.add(mr)
 
         _clear_headless_columns(ws_new)
+
+        # Shift target sno column index if preceding columns were deleted
+        actual_sno_col = sno_col - sum(1 for c in cols_to_delete if c < sno_col)
+        _reindex_serial_numbers(ws_new, actual_sno_col)
 
         sheets_created += 1
 
